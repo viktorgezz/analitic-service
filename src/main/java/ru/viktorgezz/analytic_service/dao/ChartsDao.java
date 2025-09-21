@@ -88,24 +88,60 @@ public class ChartsDao {
                                 rs.getInt("warning"),
                                 rs.getInt("resolved")
                         ),
-                        interval,
-                        url
+                        url,
+                        interval
                 ).getFirst()
         );
     }
 
     public List<HeatmapEntry> getHeatmapEntry(String url, int interval) {
         final String sql = """
+                WITH all_hours AS (
+                    SELECT number AS hour_of_day FROM numbers(24)
+                ),
+                all_days AS (
+                    SELECT
+                        number + 1 AS day_of_week_num,
+                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][number + 1] AS day_of_week
+                    FROM numbers(7)
+                ),
+                cartesian_product AS (
+                    SELECT d.day_of_week, h.hour_of_day
+                    FROM all_days d
+                    CROSS JOIN all_hours h
+                ),
+                real_failures AS (
+                    SELECT
+                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][
+                            toDayOfWeek(timestamp, 1)
+                        ] AS day_of_week,
+                        toHour(timestamp) AS hour_of_day,
+                        COUNT(*) AS value
+                    FROM checks
+                    WHERE timestamp >= now() - INTERVAL ? HOUR
+                      AND startsWith(url, ?)
+                      AND success = false
+                    GROUP BY day_of_week, hour_of_day
+                )
                 SELECT
-                    toDayOfWeek(timestamp) AS day_of_week,
-                    toHour(timestamp) AS hour_of_day,
-                    COUNT(*) AS value
-                FROM checks
-                WHERE timestamp >= now() - INTERVAL ? HOUR
-                  AND startsWith(url, ?)
-                GROUP BY day_of_week, hour_of_day
-                ORDER BY day_of_week, hour_of_day
-                
+                    cp.day_of_week AS day_of_week,
+                    cp.hour_of_day AS hour_of_day,
+                    COALESCE(f.value, 0) AS value
+                FROM cartesian_product cp
+                LEFT JOIN real_failures f
+                    ON cp.day_of_week = f.day_of_week
+                   AND cp.hour_of_day = f.hour_of_day
+                ORDER BY
+                    CASE cp.day_of_week
+                        WHEN 'Monday'    THEN 1
+                        WHEN 'Tuesday'   THEN 2
+                        WHEN 'Wednesday' THEN 3
+                        WHEN 'Thursday'  THEN 4
+                        WHEN 'Friday'    THEN 5
+                        WHEN 'Saturday'  THEN 6
+                        WHEN 'Sunday'    THEN 7
+                    END,
+                    cp.hour_of_day
                 """;
 
         return jdbc
