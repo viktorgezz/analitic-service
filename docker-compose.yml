@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  analytic-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8085:8085"
+    container_name: analytic-service

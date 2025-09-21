@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: analytic-service
+
+logging:
+  level:
+    ru.viktorgezz.analytic_service: DEBUG
+    org.testcontainers: INFO
+    org.flywaydb: DEBUG

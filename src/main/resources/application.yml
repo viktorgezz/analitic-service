@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: analytic-service
+  datasource:
+    url: jdbc:ch://203.81.208.57:8123/default
+    username: admin
+    password: Passw0rd
+    driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+  kafka:
+    bootstrap-servers: 193.124.114.117:9092
+    properties:
+      security.protocol: SASL_PLAINTEXT
+      sasl.mechanism: PLAIN
+      sasl.jaas.config: org.apache.kafka.common.security.plain.PlainLoginModule required username="user1" password="pass1";
+    consumer:
+      group-id: analytic-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+server:
+  port: 8085
+
