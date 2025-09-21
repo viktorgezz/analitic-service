@@ -27,7 +27,6 @@ public class InitResourceMetricsReport {
 
         report.setMetrics(metrics);
 
-
         return report;
     }
 
