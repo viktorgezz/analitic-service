@@ -2,6 +2,7 @@ package ru.viktorgezz.analytic_service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import ru.viktorgezz.analytic_service.model.charts.Dependency;
 import ru.viktorgezz.analytic_service.model.charts.ResourceMetricsReport;
 import ru.viktorgezz.analytic_service.service.intrf.ChartsService;
 import ru.viktorgezz.analytic_service.service.intrf.CommonMetricsService;
@@ -48,8 +49,9 @@ public class InitResourceMetricsReport {
         stats.setResponseTime(chartsService.getResponseTime(url, interval));
         stats.setFailuresByTypes(chartsService.calculateFailuresByTypes(url, interval));
         stats.setHeatmap(chartsService.getHeatmapEntry(url, interval));
-
+        stats.setDependencies(chartsService.getDependency(url, interval));
         report.setStats(stats);
+
 
         return report;
     }

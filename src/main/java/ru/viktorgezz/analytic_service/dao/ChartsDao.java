@@ -1,8 +1,10 @@
 package ru.viktorgezz.analytic_service.dao;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import ru.viktorgezz.analytic_service.model.charts.Dependency;
 import ru.viktorgezz.analytic_service.model.charts.FailuresByTypes;
 import ru.viktorgezz.analytic_service.model.charts.HeatmapEntry;
 import ru.viktorgezz.analytic_service.model.charts.TimestampValue;
@@ -11,6 +13,7 @@ import java.sql.ResultSet;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ChartsDao {
@@ -156,5 +159,76 @@ public class ChartsDao {
                         interval,
                         url
                 );
+    }
+
+    public List<Dependency> getDependency(String url) {
+        try {
+
+            final String sql = """
+                    WITH time_buckets AS (
+                        SELECT DISTINCT
+                            toStartOfInterval(timestamp, INTERVAL 1 MINUTE) AS time_bucket
+                        FROM checks
+                        WHERE startsWith(url, ?) -- вставить нужный URL
+                    ),
+                    url_list AS (
+                        SELECT DISTINCT url
+                        FROM checks
+                        WHERE startsWith(url, ?) -- вставить нужный URL
+                    ),
+                    failures AS (
+                        SELECT
+                            toStartOfInterval(c.timestamp, INTERVAL 1 MINUTE) AS time_bucket,
+                            c.url,
+                            max(c.success = false) AS is_failure
+                        FROM checks c
+                        WHERE startsWith(c.url, ?) -- вставить нужный URL
+                        GROUP BY time_bucket, c.url
+                    ),
+                    correlations AS (
+                        SELECT
+                            u1.url AS from_url,
+                            u2.url AS to_url,
+                            (
+                                avg(f1.is_failure * f2.is_failure) - avg(f1.is_failure) * avg(f2.is_failure)
+                            ) / (
+                                sqrt(avg(f1.is_failure * f1.is_failure) - pow(avg(f1.is_failure), 2)) *
+                                sqrt(avg(f2.is_failure * f2.is_failure) - pow(avg(f2.is_failure), 2))
+                            ) AS correlation
+                        FROM url_list u1
+                        CROSS JOIN url_list u2
+                        JOIN failures f1 ON f1.url = u1.url
+                        JOIN failures f2 ON f2.url = u2.url AND f2.time_bucket = f1.time_bucket
+                        WHERE u1.url != u2.url
+                        GROUP BY u1.url, u2.url
+                        HAVING
+                            sqrt(avg(f1.is_failure * f1.is_failure) - pow(avg(f1.is_failure), 2)) > 0 AND
+                            sqrt(avg(f2.is_failure * f2.is_failure) - pow(avg(f2.is_failure), 2)) > 0
+                    )
+                    SELECT
+                        from_url AS "from",
+                        to_url AS "to",
+                        round(correlation, 2) AS correlation
+                    FROM correlations
+                    ORDER BY correlation DESC
+                    
+                    """;
+            return jdbc
+                    .query(
+                            sql,
+                            (ResultSet rs, int rowNum)
+                                    -> new Dependency(
+                                    rs.getString("from"),
+                                    rs.getString("to"),
+                                    rs.getDouble("correlation")
+                            ),
+                            url,
+                            url,
+                            url
+                    );
+        } catch (Exception e) {
+            log.error("Не удалось получить Dependency (correlation)");
+            return List.of(new Dependency("http://example", "http://example1", 0.0));
+        }
     }
 }
