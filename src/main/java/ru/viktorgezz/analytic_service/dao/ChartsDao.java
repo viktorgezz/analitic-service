@@ -47,7 +47,7 @@ public class ChartsDao {
         final String sql = """
                 SELECT
                     toStartOfInterval(timestamp, INTERVAL 1 HOUR) AS timestamp,
-                    round(avg(response_time), 2) AS value
+                    round(avg(response_time), 3) AS value
                 FROM checks
                 WHERE timestamp >= now() - INTERVAL ? HOUR
                   AND startsWith(url, ?)
