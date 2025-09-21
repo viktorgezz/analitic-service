@@ -69,34 +69,29 @@ public class ChartsDao {
     }
 
     public Optional<FailuresByTypes> calculateFailuresByTypes(String url, int interval) {
-//        final String sql = """
-//                SELECT
-//                    multiIf(
-//                        response_time <= 3, 'warning',
-//                        'critical'
-//                    ) AS severity,
-//                    COUNT(*) AS count
-//                FROM checks
-//                WHERE timestamp >= now() - INTERVAL ? HOUR
-//                  AND startsWith(url, ?)
-//                GROUP BY severity
-//                ORDER BY severity
-//                """;
-//        return Optional.ofNullable(jdbc
-//                .query(
-//                        sql,
-//                        (ResultSet rs, int rowNum)
-//                                -> new FailuresByTypes(
-//                                0,
-//                                rs.getInt("severity"),
-//                                rs.getInt("count")
-//                        ),
-//                        interval,
-//                        url
-//                ).getFirst()
-//        );
-        return Optional.of(new FailuresByTypes(0, 0 ,0));
-
+        final String sql = """
+                SELECT
+                countIf(response_time > 1) AS resolved,
+                countIf(response_time >= 1 AND response_time <= 3) AS warning,
+                countIf(response_time > 3) AS critical
+                FROM checks
+                WHERE startsWith(url, ?)
+                AND timestamp >= now() - INTERVAL ? HOUR
+                AND success = False
+                """;
+        return Optional.ofNullable(jdbc
+                .query(
+                        sql,
+                        (ResultSet rs, int rowNum)
+                                -> new FailuresByTypes(
+                                rs.getInt("critical"),
+                                rs.getInt("warning"),
+                                rs.getInt("resolved")
+                        ),
+                        interval,
+                        url
+                ).getFirst()
+        );
     }
 
     public List<HeatmapEntry> getHeatmapEntry(String url, int interval) {
